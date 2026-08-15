@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const holdings = [
   { code: "005930", name: "삼성전자", price: "78,400", change: "+1.42%", value: "3,920,000", gain: "+8.14%", color: "#2563eb" },
@@ -18,8 +18,21 @@ export default function Home() {
   const [watching, setWatching] = useState(false);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
-  const searched = useMemo(() => holdings.find((item) => item.name.includes(query) || item.code.includes(query)), [query]);
+  const [liveQuotes, setLiveQuotes] = useState(holdings);
+  const [quoteStatus, setQuoteStatus] = useState("데모 데이터");
+  const searched = useMemo(() => liveQuotes.find((item) => item.name.includes(query) || item.code.includes(query)), [query, liveQuotes]);
   function showToast(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2200); }
+  async function refreshQuotes() {
+    setQuoteStatus("불러오는 중");
+    try {
+      const response = await fetch("/api/quotes?symbols=005930,000660,035420");
+      const data = await response.json() as { message?: string; quotes?: typeof holdings };
+      if (!response.ok || !data.quotes) throw new Error(data.message || "시세를 불러오지 못했습니다.");
+      setLiveQuotes(data.quotes.map((quote, index) => ({ ...holdings[index], ...quote })));
+      setQuoteStatus("KIS 실시간 시세");
+    } catch (error) { setQuoteStatus("데모 데이터"); showToast(error instanceof Error ? error.message : "시세를 불러오지 못했습니다."); }
+  }
+  useEffect(() => { void refreshQuotes(); }, []);
 
   return <main>
     <aside className="sidebar"><div className="brand"><span className="brand-mark">ㅅ</span><span>시그널</span></div><p className="brand-caption">KOREA STOCKS</p>
@@ -30,8 +43,8 @@ export default function Home() {
       {query && <div className="search-result">{searched ? <><b>{searched.name}</b> · {searched.code} <span className="up">{searched.change}</span></> : "검색 결과가 없습니다."}</div>}
       <section className="market-strip"><div><span>코스피</span><strong>2,734.36</strong><em className="up">+0.86%</em></div><i/><div><span>코스닥</span><strong>885.72</strong><em className="up">+1.24%</em></div><i/><div><span>원/달러</span><strong>1,372.80</strong><em className="down">+0.17%</em></div><p>장 마감까지 <b>05:42:18</b></p></section>
       <section className="hero-grid"><article className="portfolio-card"><div className="card-top"><div><p>내 포트폴리오</p><h2>₩ 8,214,000</h2><span className="portfolio-rise">▲ ₩ 642,000 <b>+8.48%</b></span></div><button onClick={() => setTab("포트폴리오")}>자세히 보기 →</button></div><div className="chart-wrap"><div className="chart-labels"><span>8.6M</span><span>8.2M</span><span>7.8M</span></div><svg viewBox="0 0 620 150" role="img" aria-label="포트폴리오 수익 추이"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#60a5fa" stopOpacity=".35"/><stop offset="1" stopColor="#60a5fa" stopOpacity="0"/></linearGradient></defs><path d="M0,122 C35,112 52,121 81,99 S126,112 151,76 S198,96 222,86 S256,50 281,63 S323,91 351,66 S395,77 428,33 S475,66 505,43 S554,45 620,10 L620,150 L0,150Z" fill="url(#area)"/><path d="M0,122 C35,112 52,121 81,99 S126,112 151,76 S198,96 222,86 S256,50 281,63 S323,91 351,66 S395,77 428,33 S475,66 505,43 S554,45 620,10" fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round"/></svg><div className="months"><span>3월</span><span>4월</span><span>5월</span><span>6월</span><span>7월</span><span>8월</span></div></div></article><article className="insight-card"><div className="sparkle">✦</div><p className="eyebrow">오늘의 AI 인사이트</p><h3>반도체, 실적 개선의<br/>초입을 지나는 중</h3><p>메모리 가격 반등과 출하량 증가가 동시에 나타나고 있어요.</p><button onClick={() => showToast("AI 분석은 준비 중입니다.")}>분석 읽기 →</button><span className="orb orb-one"/><span className="orb orb-two"/></article></section>
-      <section className="section-heading"><div><p className="eyebrow">WATCHLIST</p><h2>관심종목</h2></div><button className="text-button" onClick={() => setWatching(!watching)}>{watching ? "관심종목 닫기" : "종목 추가 ＋"}</button></section>{watching && <div className="add-stock"><input placeholder="예: 005930 또는 삼성전자" /><button onClick={() => {setWatching(false); showToast("관심종목에 추가했습니다.");}}>추가</button></div>}
-      <section className="stock-table"><div className="table-head"><span>종목</span><span>현재가</span><span>등락률</span><span>평가금액</span><span>수익률</span><span/></div>{holdings.map((item) => <div className="stock-row" key={item.code}><span className="stock-name"><b className="stock-icon" style={{background:item.color}}>{item.name[0]}</b><span><strong>{item.name}</strong><small>{item.code}</small></span></span><strong>{item.price}<small>원</small></strong><b className={item.change.startsWith("−") ? "down" : "up"}>{item.change}</b><span>{item.value}<small>원</small></span><b className={item.gain.startsWith("−") ? "down" : "up"}>{item.gain}</b><button onClick={() => showToast(`${item.name} 상세 분석을 준비 중입니다.`)}>›</button></div>)}</section>
+      <section className="section-heading"><div><p className="eyebrow">WATCHLIST · <span className={quoteStatus === "KIS 실시간 시세" ? "live-status" : ""}>{quoteStatus}</span></p><h2>관심종목</h2></div><div className="quote-actions"><button className="text-button" onClick={() => void refreshQuotes()}>↻ 새로고침</button><button className="text-button" onClick={() => setWatching(!watching)}>{watching ? "관심종목 닫기" : "종목 추가 ＋"}</button></div></section>{watching && <div className="add-stock"><input placeholder="예: 005930 또는 삼성전자" /><button onClick={() => {setWatching(false); showToast("관심종목에 추가했습니다.");}}>추가</button></div>}
+      <section className="stock-table"><div className="table-head"><span>종목</span><span>현재가</span><span>등락률</span><span>평가금액</span><span>수익률</span><span/></div>{liveQuotes.map((item) => <div className="stock-row" key={item.code}><span className="stock-name"><b className="stock-icon" style={{background:item.color}}>{item.name[0]}</b><span><strong>{item.name}</strong><small>{item.code}</small></span></span><strong>{item.price}<small>원</small></strong><b className={item.change.startsWith("−") ? "down" : "up"}>{item.change}</b><span>{item.value}<small>원</small></span><b className={item.gain.startsWith("−") ? "down" : "up"}>{item.gain}</b><button onClick={() => showToast(`${item.name} 상세 분석을 준비 중입니다.`)}>›</button></div>)}</section>
       <section className="lower-grid"><article className="news-card"><div className="section-heading"><div><p className="eyebrow">MARKET PULSE</p><h2>공시 · 뉴스</h2></div><button className="text-button" onClick={() => setTab("공시 · 뉴스")}>전체 보기 →</button></div>{news.map((item) => <div className="news-row" key={item.title}><time>{item.time}</time><span className={`tag ${item.tone}`}>{item.tag}</span><div><strong>{item.title}</strong><p>{item.detail}</p></div></div>)}</article><article className="note-card"><p className="eyebrow">INVESTMENT NOTE</p><h3>이번 분기 투자 가설을<br/>점검할 시간이에요.</h3><p>매수 이유와 리스크를 기록하면 감정적인 판단을 줄일 수 있어요.</p><button onClick={() => showToast("투자 노트를 작성해보세요.")}>노트 작성하기</button></article></section>
     </section>{toast && <div className="toast">✓ {toast}</div>}</main>;
 }
